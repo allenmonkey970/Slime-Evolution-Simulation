@@ -1,1 +1,102 @@
-# -Slime-Evolution-Simulation
+# Slime Evolution Simulation
+
+A Python-based ecological simulation that models the competition between two genetic strategies in a population of virtual organisms called "slimes" competing for resources.
+
+![Slime Population Over Time](slime_population_over_time.png)
+
+## Overview
+
+This simulation explores evolutionary dynamics by modeling two competing genetic strategies:
+
+- **Greedy Slimes (Red)**: Collect 10 apples at once and skip foraging in the next turn
+- **Minimal Slimes (Blue)**: Collect only 5 apples each turn, always need to forage
+
+Both types compete for limited apple resources that grow on trees scattered throughout the environment. The simulation tracks population dynamics, resource availability, and spatial distribution over time.
+
+## Features
+
+- **Dynamic Population Modeling**: Watch as slime populations evolve based on their genetic strategy and resource availability
+- **Spatial Interaction**: Trees and slimes exist in a 2D environment where distance affects foraging opportunities
+- **Genetic Competition**: Two competing genetic strategies battle for dominance
+- **Resource Management**: Limited resources create selective pressure on the population
+- **Detailed Visualizations**:
+  - Population trends over time
+  - Gene distribution percentages
+  - Spatial distribution of organisms and resources
+  - Animated simulation playback (GIF and MP4)
+
+![Slime Simulation](slime_simulation.gif)
+
+## Requirements
+
+- Python 3.6+
+- Required libraries:
+  - matplotlib
+  - numpy
+  - collections
+
+## Usage
+
+Run the simulation with default parameters:
+
+```python
+python slime_simulation.py
+```
+
+You can customize the simulation by modifying these parameters:
+
+```python
+NUM_TREES = 30       # Number of trees (resources) in the environment
+INITIAL_SLIMES = 50  # Starting population size
+NUM_TURNS = 100      # Duration of the simulation
+```
+
+## How It Works
+
+### Entities
+
+1. **Trees**: 
+   - Generate 10 apples per turn
+   - Have fixed positions in the environment
+
+2. **Slimes**:
+   - Move through the environment searching for trees with apples
+   - Collect apples according to their genetic strategy
+   - Need 5 apples per turn to survive
+   - Reproduce when paired with another surviving slime
+
+### Simulation Loop
+
+Each turn follows this sequence:
+1. Trees produce new apples
+2. Slimes search for and collect apples based on their genetic strategy
+3. Slimes consume apples for survival (5 apples needed)
+4. Surviving slimes randomly pair and reproduce
+5. Statistics are recorded for visualization
+
+### Output
+
+The simulation produces:
+- Population graphs showing the competition between genetic strategies
+- Spatial distribution maps of slimes and resources
+- GIF/MP4 animation of the entire simulation
+- Final statistics summary
+
+![Final Statistics](slime_final_stats.png)
+
+## Project Structure
+
+- `Tree`: Class for resource-generating entities
+- `Slime`: Class for organisms with genetic strategies
+- `Simulation`: Main class handling the simulation logic and visualization
+
+## Evolutionary Insights
+
+This simulation demonstrates:
+- How different resource acquisition strategies compete under selective pressure
+- The importance of spatial distribution in ecological systems
+- Population dynamics in response to limited resources
+- Genetic drift and dominance in isolated populations
+
+## License
+[License](LICENSE)

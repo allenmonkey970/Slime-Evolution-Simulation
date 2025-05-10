@@ -434,3 +434,9 @@ if __name__ == "__main__":
         print("\nConclusion: The minimal gene strategy was more successful!")
     else:
         print("\nConclusion: Both gene strategies performed equally well!")
+
+    print("\n Final resource availability:")
+    final_tree_count = stats['tree_count'][-1]
+    apples_produced_last_turn = final_tree_count * 10
+    print(f"\nFinal number of trees: {final_tree_count}")
+    print(f"Apples produced in the last turn: {apples_produced_last_turn}")

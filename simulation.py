@@ -13,6 +13,16 @@ class Tree:
     def produce_apples(self):
         self.apple_count = 10  # Reset apple production each turn
 
+    def reproduce(self, world_size, spread=0.08):
+        """Trees can reproduce by spawning a new tree nearby (if within bounds)."""
+        angle = random.uniform(0, 2 * np.pi)
+        distance = random.uniform(0.03, spread)
+        new_x = self.x + np.cos(angle) * distance
+        new_y = self.y + np.sin(angle) * distance
+        # world bounds
+        new_x = max(0, min(world_size[0], new_x))
+        new_y = max(0, min(world_size[1], new_y))
+        return Tree(new_x, new_y)
 
 class Slime:
     def __init__(self, gene_type, x, y):
@@ -86,10 +96,12 @@ class Slime:
 
         return Slime(child_gene, child_x, child_y)
 
-
 class Simulation:
-    def __init__(self, num_trees, initial_slimes, world_size=(1, 1)):
+    def __init__(self, num_trees, initial_slimes, world_size=(1, 1), max_trees=None, tree_repro_chance=0.03):
         self.world_size = world_size
+        self.max_trees = max_trees  # None means infinite trees allowed
+        self.tree_repro_chance = tree_repro_chance  # Chance per tree per turn to reproduce
+
         # Create trees at random positions
         self.trees = [Tree(random.random(), random.random()) for _ in range(num_trees)]
 
@@ -108,10 +120,10 @@ class Simulation:
             "minimal": [initial_slimes - half],
             "total": [initial_slimes],
             "apple_count": [sum(tree.apple_count for tree in self.trees)],
+            "tree_count": [len(self.trees)],
             "positions": [],  # For storing positions of each slime at each turn
             "tree_positions": [(tree.x, tree.y) for tree in self.trees]
         }
-
         # Save initial positions
         self.update_positions()
 
@@ -119,15 +131,27 @@ class Simulation:
         """Update the position records for visualization"""
         greedy_pos = [(slime.x, slime.y) for slime in self.slimes if slime.gene_type == "greedy"]
         minimal_pos = [(slime.x, slime.y) for slime in self.slimes if slime.gene_type == "minimal"]
-
+        tree_pos = [(tree.x, tree.y) for tree in self.trees]
         self.stats["positions"].append({
             "greedy": greedy_pos,
-            "minimal": minimal_pos
+            "minimal": minimal_pos,
+            "trees": tree_pos
         })
 
     def run_turn(self):
         """Execute one turn of the simulation"""
         self.turn += 1
+
+        # --- Tree reproduction ---
+        new_trees = []
+        # If max_trees is None, allow infinite trees
+        if self.max_trees is None or len(self.trees) < self.max_trees:
+            for tree in self.trees:
+                if random.random() < self.tree_repro_chance:
+                    if self.max_trees is None or len(self.trees) + len(new_trees) < self.max_trees:
+                        new_tree = tree.reproduce(self.world_size)
+                        new_trees.append(new_tree)
+        self.trees.extend(new_trees)
 
         # Trees produce new apples
         for tree in self.trees:
@@ -168,6 +192,8 @@ class Simulation:
         self.stats["minimal"].append(minimal_count)
         self.stats["total"].append(len(self.slimes))
         self.stats["apple_count"].append(apple_count)
+        self.stats["tree_count"].append(len(self.trees))
+        self.stats["tree_positions"] = [(tree.x, tree.y) for tree in self.trees]
 
         # Update positions
         self.update_positions()
@@ -190,11 +216,12 @@ class Simulation:
         plt.figure(figsize=(12, 8))
 
         # Plot population counts
-        plt.subplot(2, 1, 1)
+        plt.subplot(3, 1, 1)
         plt.plot(turns, self.stats["greedy"], 'r-', linewidth=2.5, label='Greedy Slimes')
         plt.plot(turns, self.stats["minimal"], 'b-', linewidth=2.5, label='Minimal Slimes')
         plt.plot(turns, self.stats["total"], 'g--', linewidth=2, label='Total Population')
         plt.plot(turns, self.stats["apple_count"], 'y-.', linewidth=1.5, label='Total Apples')
+        plt.plot(turns, self.stats["tree_count"], 'darkgreen', linestyle=':', linewidth=2, label='Tree Count')
 
         plt.xlabel('Turn')
         plt.ylabel('Count')
@@ -203,7 +230,7 @@ class Simulation:
         plt.grid(True)
 
         # Plot population percentages
-        plt.subplot(2, 1, 2)
+        plt.subplot(3, 1, 2)
         total_pop = np.array(self.stats["total"])
         # Avoid division by zero
         total_pop[total_pop == 0] = 1
@@ -219,6 +246,15 @@ class Simulation:
         plt.legend()
         plt.grid(True)
 
+        # Plot number of trees
+        plt.subplot(3, 1, 3)
+        plt.plot(turns, self.stats["tree_count"], color='darkgreen', label='Tree Count', linewidth=2)
+        plt.xlabel('Turn')
+        plt.ylabel('Trees')
+        plt.title('Number of Trees Over Time')
+        plt.grid(True)
+        plt.legend()
+
         plt.tight_layout()
         plt.savefig('slime_population_over_time.png', dpi=300)
         plt.show()
@@ -230,13 +266,10 @@ class Simulation:
 
         fig, ax = plt.subplots(figsize=(10, 8))
 
-        # Plot trees (static)
-        tree_x, tree_y = zip(*self.stats["tree_positions"])
-        trees_scatter = ax.scatter(tree_x, tree_y, color='green', s=100, marker='^', label='Trees')
-
-        # Initialize empty scatter plots for slimes
+        # Initialize empty scatter plots for slimes and trees
         greedy_scatter = ax.scatter([], [], color='red', s=50, alpha=0.7, label='Greedy Slimes')
         minimal_scatter = ax.scatter([], [], color='blue', s=50, alpha=0.7, label='Minimal Slimes')
+        trees_scatter = ax.scatter([], [], color='green', s=100, marker='^', label='Trees')
 
         # Text for displaying turn and counts
         turn_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=12)
@@ -247,7 +280,7 @@ class Simulation:
         ax.legend(loc='upper right')
 
         def update(frame):
-            # Update slime positions
+            # Update slime and tree positions
             if frame < len(self.stats["positions"]):
                 pos = self.stats["positions"][frame]
 
@@ -263,14 +296,19 @@ class Simulation:
                 else:
                     minimal_scatter.set_offsets(np.array([[], []]).T)
 
+                if pos["trees"]:
+                    tree_x, tree_y = zip(*pos["trees"])
+                    trees_scatter.set_offsets(np.column_stack([tree_x, tree_y]))
+
                 # Update counts text
                 turn_text.set_text(f'Turn: {frame}\n'
                                    f'Greedy: {self.stats["greedy"][frame]}\n'
                                    f'Minimal: {self.stats["minimal"][frame]}\n'
                                    f'Total: {self.stats["total"][frame]}\n'
+                                   f'Trees: {self.stats["tree_count"][frame]}\n'
                                    f'Apples: {self.stats["apple_count"][frame]}')
 
-            return greedy_scatter, minimal_scatter, turn_text
+            return greedy_scatter, minimal_scatter, trees_scatter, turn_text
 
         ani = FuncAnimation(fig, update, frames=frames, interval=interval, blit=True)
         plt.tight_layout()
@@ -318,8 +356,9 @@ class Simulation:
         if final_pos["minimal"]:
             minimal_x, minimal_y = zip(*final_pos["minimal"])
             plt.scatter(minimal_x, minimal_y, color='blue', s=50, alpha=0.7, label='Minimal')
-        tree_x, tree_y = zip(*self.stats["tree_positions"])
-        plt.scatter(tree_x, tree_y, color='green', s=100, marker='^', label='Trees')
+        if final_pos["trees"]:
+            tree_x, tree_y = zip(*final_pos["trees"])
+            plt.scatter(tree_x, tree_y, color='green', s=100, marker='^', label='Trees')
         plt.xlabel('X Position')
         plt.ylabel('Y Position')
         plt.title('Final Spatial Distribution')
@@ -344,11 +383,13 @@ class Simulation:
 
         # Resource availability over time
         plt.subplot(2, 2, 4)
-        plt.plot(turns, self.stats["apple_count"], 'g-', linewidth=2)
+        plt.plot(turns, self.stats["apple_count"], color='red', linewidth=2, label='Apples')
+        plt.plot(turns, self.stats["tree_count"], color='darkgreen', linewidth=2, label='Trees')
         plt.xlabel('Turn')
-        plt.ylabel('Apple Count')
+        plt.ylabel('Count')
         plt.title('Resource Availability')
         plt.grid(True)
+        plt.legend()
 
         plt.tight_layout()
         plt.savefig('slime_final_stats.png', dpi=300)
@@ -362,9 +403,13 @@ if __name__ == "__main__":
     INITIAL_SLIMES = 50
     NUM_TURNS = 100
 
+    # Tree reproduction options
+    MAX_TREES = None           # Infinite trees allowed
+    TREE_REPRO_CHANCE = 0.03   # Probability for each tree to reproduce per turn
+
     # Run the simulation
     print("Starting simulation...")
-    sim = Simulation(NUM_TREES, INITIAL_SLIMES)
+    sim = Simulation(NUM_TREES, INITIAL_SLIMES, max_trees=MAX_TREES, tree_repro_chance=TREE_REPRO_CHANCE)
     stats = sim.run_simulation(NUM_TURNS)
 
     print("Generating visualizations...")

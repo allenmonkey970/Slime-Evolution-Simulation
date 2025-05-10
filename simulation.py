@@ -5,15 +5,18 @@ from matplotlib.animation import FuncAnimation
 from collections import defaultdict
 
 class Tree:
-    def __init__(self, x, y):
+    def __init__(self, x, y, lifespan=None):
         self.apple_count = 10  # Each tree produces 10 apples per turn
         self.x = x  # Spatial position
         self.y = y
+        self.age = 0  # Age in turns
+        # Lifespan is how many turns tree lives; if None, randomly assign in range (default 50-150)
+        self.lifespan = lifespan if lifespan is not None else random.randint(50, 150)
 
     def produce_apples(self):
         self.apple_count = 10  # Reset apple production each turn
 
-    def reproduce(self, world_size, spread=0.08):
+    def reproduce(self, world_size, spread=0.08, lifespan_range=(50, 150)):
         """Trees can reproduce by spawning a new tree nearby (if within bounds)."""
         angle = random.uniform(0, 2 * np.pi)
         distance = random.uniform(0.03, spread)
@@ -22,7 +25,13 @@ class Tree:
         # world bounds
         new_x = max(0, min(world_size[0], new_x))
         new_y = max(0, min(world_size[1], new_y))
-        return Tree(new_x, new_y)
+        # Child gets a potentially new lifespan
+        return Tree(new_x, new_y, lifespan=random.randint(*lifespan_range))
+
+    def grow_older(self):
+        """Ages the tree by one turn. Returns True if alive, False if dead."""
+        self.age += 1
+        return self.age < self.lifespan
 
 class Slime:
     def __init__(self, gene_type, x, y):
@@ -97,13 +106,14 @@ class Slime:
         return Slime(child_gene, child_x, child_y)
 
 class Simulation:
-    def __init__(self, num_trees, initial_slimes, world_size=(1, 1), max_trees=None, tree_repro_chance=0.03):
+    def __init__(self, num_trees, initial_slimes, world_size=(1, 1), max_trees=None, tree_repro_chance=0.03, tree_lifespan_range=(50, 150)):
         self.world_size = world_size
         self.max_trees = max_trees  # None means infinite trees allowed
         self.tree_repro_chance = tree_repro_chance  # Chance per tree per turn to reproduce
+        self.tree_lifespan_range = tree_lifespan_range
 
-        # Create trees at random positions
-        self.trees = [Tree(random.random(), random.random()) for _ in range(num_trees)]
+        # Create trees at random positions, each with a random lifespan
+        self.trees = [Tree(random.random(), random.random(), lifespan=random.randint(*self.tree_lifespan_range)) for _ in range(num_trees)]
 
         self.slimes = []
         # Create initial population with equal distribution of genes at random positions
@@ -149,8 +159,13 @@ class Simulation:
             for tree in self.trees:
                 if random.random() < self.tree_repro_chance:
                     if self.max_trees is None or len(self.trees) + len(new_trees) < self.max_trees:
-                        new_tree = tree.reproduce(self.world_size)
+                        new_tree = tree.reproduce(self.world_size, lifespan_range=self.tree_lifespan_range)
                         new_trees.append(new_tree)
+
+        # Tree death
+        # Trees age and only survive if not over lifespan
+        self.trees = [tree for tree in self.trees if tree.grow_older()]
+        # Add new trees after death filtering
         self.trees.extend(new_trees)
 
         # Trees produce new apples
@@ -396,7 +411,6 @@ class Simulation:
         plt.show()
 
 
-# Example usage
 if __name__ == "__main__":
     # Parameters
     NUM_TREES = 30
@@ -406,10 +420,11 @@ if __name__ == "__main__":
     # Tree reproduction options
     MAX_TREES = None           # Infinite trees allowed
     TREE_REPRO_CHANCE = 0.03   # Probability for each tree to reproduce per turn
+    TREE_LIFESPAN_RANGE = (50, 150)  # Trees will randomly live 50-150 turns
 
     # Run the simulation
     print("Starting simulation...")
-    sim = Simulation(NUM_TREES, INITIAL_SLIMES, max_trees=MAX_TREES, tree_repro_chance=TREE_REPRO_CHANCE)
+    sim = Simulation(NUM_TREES, INITIAL_SLIMES, max_trees=MAX_TREES, tree_repro_chance=TREE_REPRO_CHANCE, tree_lifespan_range=TREE_LIFESPAN_RANGE)
     stats = sim.run_simulation(NUM_TURNS)
 
     print("Generating visualizations...")
@@ -435,7 +450,7 @@ if __name__ == "__main__":
     else:
         print("\nConclusion: Both gene strategies performed equally well!")
 
-    print("\n Final resource availability:")
+    print("\nFinal resource availability:")
     final_tree_count = stats['tree_count'][-1]
     apples_produced_last_turn = final_tree_count * 10
     print(f"\nFinal number of trees: {final_tree_count}")
